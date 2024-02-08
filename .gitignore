@@ -298,15 +298,17 @@ TSWLatexianTemp*
 *.xwm
 
 #All word docs
-*.docs
+*.docx
 
 #Rproj
 *.Rproj
+.Proj.user
+
 #Rdata and Rhistory
 .RData
 .Rhistory
-
-
+*.tex
+*.html
 
 
 
