@@ -1,0 +1,10 @@
+
+
+#Log files
+.log
+#LaTex files
+.tex
+#Rproject files 
+.Rproj
+# Also the instructions
+.docx
