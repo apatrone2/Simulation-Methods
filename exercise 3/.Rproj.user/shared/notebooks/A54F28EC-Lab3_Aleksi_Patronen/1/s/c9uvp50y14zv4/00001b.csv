@@ -1,0 +1,2 @@
+"0","housing <- read.csv(""C:/Users/Aleksi/Desktop/KOulu/Simulation Methods/Exercises/exercise 3/housing.txt"", sep="""")"
+"0","head(housing, 3)"

@@ -1,0 +1,280 @@
+---
+title: "Lab 4"
+author: "Aleksi Patronen"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Metropolis-Hastings
+
+a.) The function normm is simulating from a normal with zero mean and unit variance 
+using a Metropolis algorithm with uniform proposal distribution. The exercise is to try the following a = 0.1,1 and 200 for 2000 iterations. Present trace plots of line type and histograms with interpretations. Tune the sampler by finding a value of a that gives an acceptance probability of 0.3. You have to modify the code in order to save the acceptance rate. Explain the code with comments.
+
+
+```{r cars}
+normm<-function (Nsim, a) # give the n. of simulations and the a rate. that is the acceptance rate.
+{       vec <- vector("numeric", Nsim) # create an vector where the simulation results are stored
+        x <- 0 # Init value
+        vec[1] <- x # put init value to the vector that stores the resultsa
+        for (i in 2:Nsim) { # start the for loop that goes from 2 to the Nsim
+                innov <- runif(1, -a, a) # sample from uniform[-a, a]
+                Xstar <- x + innov # proposal plus random walk element innov
+                aprob <- min(1, dnorm(Xstar)/dnorm(x)) # aprov rate
+                u <- runif(1) # sample the minumum that must be cleared, so that the proposal is accepted. 
+                if (u < aprob)  # if proposal less than u, proposal is not accepted and the previuous x remains 
+                        x <- Xstar # if proposal is accepted the x* becomes the x
+                vec[i] <- x # save the new or old x into the vector.
+        } 
+        vec #return the vector so it can be put on plot, to show the underlying distribution.
+}
+
+```
+
+```{r}
+
+#lets try it out with 2000 samples
+
+xs <- normm(2*10^3, 1)
+hist(xs)
+plot(xs, type = "l", col = "red")
+
+```
+```{r}
+
+xs <- normm(2*10^2, 1)
+hist(xs)
+plot(xs, type = "l", col = "red")
+
+```
+
+```{r}
+xs <- normm(2*10^3, 0.1)
+hist(xs)
+plot(xs, type = "l", col = "red")
+
+```
+When a is 0.1, the algorithm doesn't stabilize, but wanders around.
+
+```{r}
+xs <- normm(2*10^2, 0.1)
+hist(xs)
+plot(xs, type = "l", col = "red")
+
+```
+
+
+Aight, let's modify normm() so that we can observe the acceptance rate
+```{r}
+normm<-function (Nsim, a) 
+{
+        vec <- vector("numeric", Nsim)
+        x <- 0
+        vec[1] <- x
+        N_acc = 0
+        for (i in 2:Nsim) {
+                innov <- runif(1, -a, a)
+                Xstar <- x + innov
+                aprob <- min(1, dnorm(Xstar)/dnorm(x))
+                u <- runif(1)
+                if (u < aprob) {
+                  x <- Xstar
+                  N_acc = N_acc + 1 # it is sufficient that we count the times the proposal is accepted   
+                  }
+                vec[i] <- x
+        }
+        return(list(res = vec, acc = N_acc/Nsim)) #return the vector and the acceptance rate. It is no the number of time the proposal was accepted divided by the proposal numbers that is the same as Nsim.
+        
+}
+
+results <- normm(10^3,1)
+results$acc 
+
+results <- normm(10^3,0.1)
+results[2] 
+```
+Acceptance rate was 0.797 when a was 1 and 0.988 when a was 0.1. So it would seems as a goes to zero acceptance rate grows.
+
+
+
+```{r}
+library(dplyr)
+results <- normm(10^3, 1)
+a <- 1
+r <- 0.30
+v <- 0.001
+learning_rate = 0.001
+
+while(!between(results$acc, r-v,r+v) ){
+  a = a + learning_rate
+  results <- normm(2*10^3, a)
+}
+print(a)
+print(results$acc)
+
+
+
+
+```
+When a is 4.58, the acceptance rate is 0.3.
+```{r}
+plot(results$res, type = "l", col = "red")
+hist(results$res)
+```
+
+b.) Function gammh is a Metropolis-Hastings independence sampling algorithm with normal proposal distribution with the same mean and variance as the desired gamma. Try a = 0.1, 2 and b = 0.01, 2. Present trace plots and histograms with interpretations. Explain the code with comments.
+
+```{r}
+gammh<-function (Nsim, a, b) {
+        mu <- a/b # intit  the expected value from which the candidate is drawn from in Markov Chain
+        sig <- sqrt(a/(b * b)) # init the distributions variance
+        vec <- vector("numeric", Nsim) # make a vector where the simulation results are stored
+        x <- a/b # init the value as give by the user.
+        vec[1] <- x # First 'result' is the
+        for (i in 2:Nsim) { # for loop from the second iteration to the Nsim 
+             can <- rnorm(1, mu, sig) # sample a candiate 
+             aprob <- min(1, (dgamma(can, a, b)/dgamma(x, a, b))/(dnorm(can, mu, sig)/dnorm(x,mu, sig))) # approval rate
+                u <- runif(1) # sample aprov minumum
+                if (u < aprob)  # if the ratior is larger than the approval minmun 
+                        x <- can # then accept the new value 
+                vec[i] <- x # if not the retain the previuys value
+        } 
+        vec # return the vector
+}
+
+```
+
+
+```{r}
+
+results <- gammh(2*10^3, 0.1, 0.01)
+
+plot(results, type = "l", col = "red")
+
+hist(results)
+
+
+```
+
+```{r}
+results <- gammh(2*10^3, 1, 2)
+
+plot(results, type = "l", col = "red")
+
+hist(results)
+
+
+```
+# Assignment 2: Bayesian model selection using the Metropolis-Hastings algorithm
+
+The task in this assignment is to use the code from Example 6.8 (p. 188-192 in Robert and Casella, 2009) to analyse the housing.txt data that you used in Lab 3 with marginal Bayesian model selection. Read through the example carefully so you understand if any changes need to be done to the code. Run the MH sampler for 25 000 iterations and discard the first 5 000 as burn-in, i.e. the sample to analyse should be the last 20 000 iterations. Calculate the probability that each variable is included within the model and find the model probabilities of the 5 best models (Hint: use the data.frame() and table() functions). Compare your results with those from the Simulated annealing and Genetic algorithms.
+
+
+```{r}
+
+
+housing <- read.csv("C:/Users/Aleksi/Desktop/KOulu/Simulation Methods/Exercises/exercise 4/housing.txt", sep="")
+dim(housing)
+head(housing, 6)
+```
+
+
+```{r}
+
+y=log(as.vector(na.omit(housing[,7])))
+X=as.matrix(na.omit(housing[,9:21]))
+
+length(y)
+nrow(X)
+```
+
+
+
+```{r}
+#This function inverses an matrix
+inv=function(X){
+  EV=eigen(X) 
+  EV$vector%*%diag(1/EV$values)%*%t(EV$vector)
+}
+
+
+#log-marginal density of model gamma
+lpostw=function(gam,y,X,beta){
+  n=length(y)
+  qgam=sum(gam)
+  Xt1=cbind(rep(1,n),X[,which(gam==1)])
+  if (qgam!=0) P1=Xt1%*%inv(t(Xt1)%*%Xt1)%*%t(Xt1) else{
+  P1=matrix(0,n,n)}
+  -(qgam+1)/2*log(n+1)-n/2*log(t(y)%*%y-n/(n+1)*
+  t(y)%*%P1%*%y-1/(n+1)*t(beta)%*%t(cbind(rep(1,n),
+  X))%*%P1%*%cbind(rep(1,n),X)%*%beta)
+}
+
+#The Metropolis-Hasting algorithm itself.
+gocho=function(niter,y,X){
+  lga=dim(X)[2]
+  beta=lm(y~X)$coeff
+  gamma=matrix(0,nrow=niter,ncol=lga)
+  gamma[1,]=sample(c(0,1),lga,rep=T)
+    for (t in 1:(niter-1)){
+      j=sample(1:lga,1)
+      gam0=gam1=gamma[t,];gam1[j]=1-gam0[j]
+      pr=lpostw(gam0,y,X,beta)
+      pr=c(pr,lpostw(gam1,y,X,beta))
+      pr=exp(pr-max(pr))
+      gamma[t+1,]=gam0
+    if (sample(c(0,1),1,prob=pr)){
+        gamma[t+1,]=gam1
+        }
+      }
+  gamma
+}
+
+```
+
+```{r}
+
+out <- gocho(25*10^3, y = y, X = X)
+
+```
+
+
+```{r}
+#5000 burn-in 
+out <- out[5000:25000,]
+```
+
+
+
+```{r}
+adm <- ifelse(apply(out,2,mean) < 0.5,0, 1)
+adm
+```
+$\gamma$-vector would by the admission probabilities be [1 1 0 1 0 1 0 1 1 1 1 1 1]. Meaning INDUS, NOX and Age variables were not included in the models.
+
+
+
+```{r}
+res <- data.frame(out)
+```
+
+```{r}
+summary(res)
+```
+In the lab3 simulated annealing gave results of = [0,1,0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1] and in GA 
+
+[1,1,0,1,0,1,1,1,1,1,1,1,1].
+
+```{r}
+MH <- c(1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1) 
+SA <- c(0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1)
+GA <- c(1, 1, 0, 1, 0, 1, 1, 1, 1, 1 ,1, 1, 1)
+
+
+MH - SA
+MH - GA
+```
+Results of the different algorithms only differ in one or two places.

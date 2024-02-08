@@ -1,0 +1,3 @@
+"0","x.avg <- apply(X, 2, mean)"
+"0","x.ci <- apply(X, 2, quantile, c(0.025, 0.975))"
+"0","plot(1:p, x.avg, ylim = c(-2, 2))"

@@ -1,0 +1,2 @@
+"0","x.dens <- density(X)"
+"0","plot(x.dens, col = 'coral3', lwd = 1.5)"

@@ -1,0 +1,255 @@
+---
+title: "Lab2 Simulation Methods"
+author: "Aleksi Patronen"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+Assignment 1: Sequential Monte Carlo of a high dimensional distribution
+
+
+a.) This assignment is based on Example 6.6 (p. 174-175) in Givens and Hoeting (2013). Read through the text carefully and take a look at the associated code. Your first task is to add comments to the code using the information in the text (especially the algorithm description).
+```{r, include=FALSE}
+# I didint have any code in my version of the book(or atleast didint find any), so I used code from the slides.
+
+## PARAMETERS
+# tmax = limit on t index
+# n = number of Monte Carlo samples
+# rejuvs = number of rejuvenations used
+# ess = effective sample size
+# w = importance weights
+# X = samples
+# Xt = current sample of X_t | X_(t-1)
+# sds = sequence of estimates of sigma
+
+
+##INITIAL VALUES
+tmax = 100 # amount cycle s
+n = 100000 # n. obs
+X = matrix(0,n,tmax+1) # filled with zeros for init. observations with n obs. and t + 1parameters
+w = matrix(0,n,tmax+1) # weight matrix init. to zero
+w[,1] = rep(1/n,n) # init weight as  1/n
+ess = rep(0,tmax) # effective sample size
+rejuvs = 0 # number of times the algorithm is rejuvenated for record keeping
+
+
+##MAIN LOOP
+set.seed(919191) # setting seed for reproducability in sampling
+for (i in 1:tmax) { # starting the for loop 
+     Xt = rnorm(n,X[,i],rep(1.5,n)) # sample from normal distr. n times, with mean as zero, and sd = 1,5
+     u = abs(cos(Xt-X[,i]))*exp(-.25*abs(Xt-X[,i])^2)/ # calculate the weight adjustment factor.
+       (dnorm(Xt,X[,i],rep(1.5,n))) 
+     w[,i+1] = w[,i]*u # weights themselfs
+     w[,i+1] = w[,i+1]/sum(w[,i+1]) # norm the weights so they sum to one
+     ess[i] = 1/sum(w[,i+1]^2) # calculate effective sample size
+     if (ess[i]<.33*n) { # if ess is too small i.e. the sampling has become too degeneritive, we restart with new weights
+          Xt = sample(Xt,n,prob=w[,i+1],replace=T) #sample with replacement from Xt, n time, with probability of the weigths
+          rejuvs = rejuvs+1  # when ess is too small we rejuvinate, this is for record keeping
+          w[,i+1] = rep(1/n,n)  # restart the weights with the same init as before.
+     }
+     X[,i+1] = Xt  # if ess is alright then keep going.
+}
+```
+
+```{r}
+########################################################################
+### EXAMPLE 6.6 HIGH DIMENSIONAL DISTRIBUTION
+#########################################################################
+# p = number of dimensions
+# n = number of points sampled
+# N.eff = effective sample size
+# X = sample
+# w = importance weights
+# rejuvs = number of rejuvenations
+# normal.draw = sample from the standard normal envelope.
+# ftxt = f_t(x_1:t) in book notation
+# ft1xt1= f_t-1(x_1:t-1)
+# Note: f_t(x_t|x_1:t-1) = ftxt/ft1xt1
+#########################################################################
+
+##INITIAL VALUES
+p = 50 # n. of parameters
+n = 5000 # n. of obs.
+
+# sample X_t at time t corresponds to column in matrix X
+# the i'th row is X_{1:p}^(i)
+X = matrix(NA, nrow = n, ncol = p) 
+
+w = rep(1, n) / n # initialize weights with uniform 1/n
+N.eff = rep(NA, p + 1)
+N.eff[1] = n # corresponds to uniform weight distribution
+ft1xt1 = w
+rejuvs = 0
+
+# store weights
+ws = matrix(NA, nrow = n, ncol = p)  # making a weight matrix
+# target density function
+dens.fun = function(x) {
+  temp = function(x) {
+    exp(-(abs(sqrt(sum(x ** 2))) ** 3) / 3) # the target density 
+  }
+  # apply the above density function temp to each row (dimension "1") of matrix x
+  # i.e. compute value of density function across all samples
+  c(apply(x, 1, temp))
+}
+
+# 1D variant of above
+dens.fun.1 = function(x) {
+  exp(-(abs(sqrt(x ** 2)) ** 3) / 3)
+}
+ncoeff = integrate(dens.fun.1, -999, 999)$value
+dens.fun.1.n = function(x) {
+  dens.fun.1(x) / ncoeff
+}
+
+
+
+
+##MAIN LOOP
+set.seed(4567)
+# loop over dimensions / time steps
+for (i in 1:p) { 
+  # Generate new sample: n points x_t^(i) from the envelope function N(0,1)
+  normal.draw = rnorm(n, mean = 0, sd = 1) 
+  
+  # Compute values of the target density at x_{1:t}
+  if (i == 1) {
+    # At first time step, compute a one-dimensional distribution
+    ftxt = dens.fun(cbind(normal.draw))
+  } else {
+    # At later time steps, append new sample to previous to make X_t
+    Xtemp = cbind(X[, 1:(i - 1)], normal.draw) 
+    ftxt = dens.fun(Xtemp)
+  }
+  # Store new sample to i'th col of matrix X
+  X[, i] = normal.draw 
+  
+  # See comment (*)
+  #calculate the weight adjustment factor
+  w = w * ftxt / (ft1xt1 * dnorm(normal.draw))
+  
+  # Store values at current time step to ft1xt1
+  ft1xt1 = ftxt
+  
+  # Normalize and store weights
+  w = w / sum(w)
+  ws[, i] = w
+  
+  # Compute effective sample size
+  N.eff[i + 1] = 1 / sum(w ** 2)
+  
+  # If ESS is less than predetermined threshold - here 1/5 of sample size,
+  # perform resampling/rejuvenation
+  if (N.eff[i + 1] < N.eff[1] / 5) {
+    rejuvs = rejuvs + 1
+    
+    # Sample indices j from (1,...,n) with replacement, with probabilities w_j
+    idx = sample(1:n, n, replace = T, prob = w)
+    
+    # Keep rows corresponding to indices idx from sample matrix X
+    X = X[idx,]
+    
+    # Re-compute density function
+    ft1xt1 = dens.fun(X[, 1:i])
+    
+    # Reset sample weights
+    w = rep(1, n) / n
+  }
+}
+
+
+```
+
+b.) Run the code until the last section that starts with #NOW TRY TO… Provide a plot of the effective sample size over iterations and explain the results.
+```{r}
+plot(0:p, N.eff, type = 'l') #plotting
+#5000/N.eff[-1] #
+
+
+```
+This plot shows the rejuvenation events in the algorithm. On y axis is the effective sample size and x axis is the iterations.when ever the ess decent to low, weights are initialized to their original value to avoid degeneracy of the sampling.
+
+c.) Calculate means and 95% confidence intervals of the sampled values X for each of p (over the iterations) and produce a plot of these results (that includes both means and confidence intervals). In addition, produce a density of all X values (merged over p) and discuss how it relates to the information given in the text.
+
+```{r}
+x.avg <- apply(X, 2, mean)
+x.ci <- apply(X, 2, quantile, c(0.025, 0.975))
+plot(1:p, x.avg, ylim = c(-2, 2))
+lines(1:p, x.ci[1, ])
+lines(1:p, x.ci[2, ])
+
+```
+This shoes the mean of the target distribution (points) and the 95%CI in lines during the run of the algorithm.
+
+```{r}
+x.dens <- density(X)
+plot(x.dens, col = 'coral3', lwd = 1.5)
+v <- seq(-4, 4, 0.01)
+lines(v, dens.fun.1.n(v), col = 'goldenrod3', lwd = 1.5)
+lines(v, dnorm(v), col = 'forestgreen', lwd = 1.5)
+
+```
+This shows the target dist.(gold), norm in green, and the algorithm given distribution in red. It clearly shows how much smaller the distribution variance is. 
+
+d.) Produce density plots of the weights over iterations. Discuss the results.
+```{r}
+plot(ws[42, ], type = 'l')
+
+
+```
+this graph shows the weights. It would seem that weights in the middle of the pack are a lot larger than others.
+
+```{r}
+plot(x = 0:p, y = N.eff, type = "l")
+
+
+
+```
+
+```{r}
+
+ws.q <- apply(ws, 2, quantile, c(0.025, 0.5, 0.975))
+plot(ws.q[2, ], type = 'l', ylim = c(0, 0.0018), col = 'khaki3', lwd = 2)
+lines(ws.q[1, ], col = 'hotpink', lwd = 2)
+lines(ws.q[3, ], col = 'mistyrose4', lwd = 2)
+abline(h = 0.0002, col = 'sandybrown')
+
+```
+
+```{r}
+plot(density(ws), col = 'tomato')
+
+```
+This one shows the density of the weights. That is how the weights are distributed at the end of the run. It seems to follow exponential distr. and has extremely low variance. ranging from 0->0.0015
+
+
+e.) Run the last part of the code and discuss if the results correspond well with the information given in the text.
+```{r}
+
+#NOW TRY TO EXPEND ALL EFFORT ON ONE SIR OF 5000 PTS
+set.seed(11)
+x = matrix(rnorm(50 * 5000), 5000, 50)
+g = dnorm(x)
+f = dens.fun(x)
+
+# Importance weights: Denominator is N_p(0,I_p)
+impwt = f / apply(g, 1, prod)
+impwt = impwt / sum(impwt)
+#ESS
+1 / sum(impwt ** 2)  #Answer varies with random number seed
+
+
+```
+
+Increasing the effective sample size to 250k, makes the effective sample size 1,704374.         
+Meaning that increasing the sample size improves the effective sample size in this case not that much, but still enough.  
+I think this means that for every 2 observations, the sample really is in effect for 1,704...
+
+
+

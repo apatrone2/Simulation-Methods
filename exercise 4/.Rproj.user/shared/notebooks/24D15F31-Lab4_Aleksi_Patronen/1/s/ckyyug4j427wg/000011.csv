@@ -1,0 +1,4 @@
+"0",""
+"0","results <- gammh(2*10^3, 0.1, 0.01)"
+"0",""
+"0","plot(results, type = ""l"", col = ""red"")"

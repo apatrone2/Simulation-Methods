@@ -1,0 +1,108 @@
+---
+title: "Lab 5"
+author: "Aleksi Patronen"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Assignment 1: Implementation of Gibbs sampling in a random effects model
+
+
+a.) The task of this assignment is to implement a multistage Gibbs sampler for a random effects model following the instructions in Example 7.5 (Robert and Casella 2009). Use the data Energy from package mcsm() (no longer at CRAN). Run the sampler for 11 000 iterations and discard the first 1 000 as burn-in. Provide histograms (or densities) for the random effects parameters and the variances. Also provide a table with summary statistics (mean, median and 95% CI). Note that it can be useful to take a look at Example 7.3 also.
+
+```{r data_init}
+
+Energy <- read.delim("C:/Users/Aleksi/Desktop/KOulu/Simulation Methods/Exercises/exercise 5/mcsm/mcsm/data/Energy.txt")
+head(Energy)
+```
+
+
+
+
+```{r}
+#TODO: Kommentoi funktio.
+#https://rdrr.io/rforge/mas3321/src/R/gibbs.R
+gibbsReffects=function(N,initial,priorparam,m,n,ybar,s)
+{
+  a=priorparam[1];b=priorparam[2];c=priorparam[3];d=priorparam[4];e=priorparam[5];f=priorparam[6]
+  output=matrix(ncol=m+3,nrow=N)
+  colnames(output)=c("mu","tau","nu",paste("theta", 1:m, sep=""))
+  theta=vector("numeric",length=m)
+  mu=initial[1]; tau=initial[2]; nu=initial[3]
+    for (j in 1:m) {theta[j]=ybar[j]}
+    output[1,]=c(mu,tau,nu,theta)
+    for (j in 2:N) {
+        muprec=b+m*nu
+        mumean=(a*b+m*nu*mean(theta))/muprec
+        mu=rnorm(1,mumean,1/sqrt(muprec))
+        tauh=d+0.5*sum(n*(s^2+(ybar-theta)^2))
+        tau=rgamma(1,c+sum(n)/2,tauh)
+        nuh=f+0.5*sum((theta-mu)^2)
+        nu=rgamma(1,e+m/2,nuh)
+        for (i in 1:m) {
+            thetaiprec=nu+n[i]*tau
+            thetaimean=(nu*mu+n[i]*ybar[i]*tau)/thetaiprec
+            theta[i]=rnorm(1,thetaimean,1/sqrt(thetaiprec))
+        }
+        output[j,]=c(mu,tau,nu,theta)
+    }
+    output
+}
+
+```
+
+```{r}
+Nsim <- 11000
+init <- c(0,0,0)
+m <- 2
+n <- c(16,16)
+energy <- as.matrix(Energy)
+
+ybar <- c(mean(energy[, 1]), mean(energy[, 2]))
+ysd <- c(sd(energy[, 1]), sd(energy[, 2]))
+
+
+
+```
+
+```{r}
+
+
+
+results <- gibbsReffects(N = Nsim,
+              initial = init,
+              priorparam = c(1,4,1,4,1,4),
+              m = m,
+              n = n,
+              ybar = ybar,
+              s = ysd)
+
+head(results)
+```
+
+
+
+
+```{r}
+#omit first thousand as burn in
+results <- results[1000:10999,]
+
+results <- data.frame(results)
+```
+
+
+
+```{r}
+hist(results$mu)
+hist(results$tau)
+hist(results$nu)
+hist(results$theta1)
+hist(results$theta2)
+
+```
+

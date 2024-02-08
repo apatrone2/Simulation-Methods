@@ -1,0 +1,4 @@
+"0","#omit first thoushand as burn in"
+"0","results <- results[1000:10999,]"
+"0",""
+"0","results <- data.frame(results)"

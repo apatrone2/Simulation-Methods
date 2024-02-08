@@ -1,0 +1,2 @@
+"0","plot(ns,deviations, type = ""b"", xlab = ""number of obs."", ylab = ""standard deviations of mean from 100 datasets"", col = ""red"")"
+"0",""

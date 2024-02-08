@@ -1,0 +1,322 @@
+---
+title: "Lab 3"
+author: "Aleksi Patronen"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Assignment 1: Multi-dimensional optimization 
+
+a). The purpose of this assignment is to compare some common methods for multi-dimensional optimization. The methods will be evaluated on Himmelblau’s function f(x,y)=(x^2+y-11)^2+(x+y^2-7)^2 which has one global maximum and four local minimum (https://en.wikipedia.org/wiki/Himmelblau%27s_function). First, use the Newton method in the nlm() function with two different starting values[(0,-2); (1,1)] to perform function minimization. The next step is to analyse the same function with three methods (Conjugate-Gradient and L-BFGS-B) available in the optim() function in R. Use the two different sets of starting values as earlier for each method. Make sure that you read the documentation of this function so you can verify that convergence has been reached, it may be necessary to alter the parameters of the control option. Present three function plots (one for each method), trajectories and the final estimates.
+
+
+
+```{r, }
+#Def. the function itself
+H <- function(sta){
+  x <- sta[1]
+  y <- sta[2]
+  (x^2+y-11)^2+(x+y^2-7)^2
+  }
+# starting position
+p1 <- array(c(0, -2), dim = c(2, 1))
+nlm(H, p1)
+
+
+
+```
+This one finds one of the minimums quite close. only some 1.722.. of an tenth of an billion away from zero. 
+
+
+```{r}
+
+
+p2 <- array(c(1, 1), dim = c(2, 1))
+nlm(H, p2)
+
+```
+This one finds the true zero (3,2) but doesn't calculate the estimate true. It should be zero, but is given as 1.450383e-14, which is quite close.
+
+
+
+
+
+Using given code to plot the convergence of nlm.
+```{r}
+source("C:/Users/Aleksi/Desktop/KOulu/Simulation Methods/Exercises/exercise 3/Lab3_1.R")
+
+
+```
+
+
+
+
+```{r}
+optim(fn = H, par = p1, gr = "CG")
+```
+```{r}
+optim(fn = H, par = p2, gr = "CG")
+
+```
+Like the Newton method this Conjugate-Gradient finds the 
+```{r}
+
+optim(fn = H, par = p1, gr = "L-BFGS-B")
+```
+```{r}
+optim(fn = H, par = p2, gr = "L-BFGS-B")
+
+```
+L-BFGS-B also finds the minimums like Newton and and Conjugate-Gradient. Estimate is also very close to the zero but not quite.
+
+
+b). The next step is to analyse the same function with stochastic gradient descent. Use the two different sets of starting values as in a). for the SGD implementation following the lecture notes. Present a new plot. Compare and discuss the results from b). with these from a).
+
+```{r, warning=FALSE}
+
+#install.packages("numDeriv")
+
+gridxy = as.matrix(expand.grid(x = seq(-5,5,0.1), y = seq(-5,5,0.1)))
+likeval = apply(gridxy,1,H)
+likedf = data.frame(gridxy,likeval)
+colnames(likedf) = c("mu1","mu2","H")
+
+library(numDeriv)
+{#Initial parameters
+    diff = 1
+    iter = 1
+    x = c(0,-2)
+    xgdold = matrix(1,ncol=2,nrow=1000)
+    #Learning rate
+    lr = 0.001
+    
+    #Gradient descent with automatic stopping
+    while (diff>10^-4){
+      xgdold[iter,] = x
+      grad = grad(func=H,x=x)
+      x = x - lr*grad
+      diff = sum(abs(x - xgdold[iter,]))/2
+      iter=iter+1
+    }
+    iter
+    #Collect parameter estimates in data frame
+    optpathgd = data.frame(xgdold[1:(iter-1),])
+    colnames(optpathgd) = c("mu1est1","mu2est1")
+    
+}
+
+
+library(ggplot2)
+#AGAIN WITH STARTING VALUES (1,1)
+#Initial parameters
+{
+  diff = 1
+  iter = 1
+  x = c(1,1)
+  xgdold = matrix(1,ncol=2,nrow=1000)
+  #Learning rate
+  lr = 0.001
+  
+  #Gradient descent with automatic stopping
+  while (diff>10^-4){
+    xgdold[iter,] = x
+    grad = grad(func=H,x=x)
+    x = x - lr*grad
+    diff = sum(abs(x - xgdold[iter,]))/2
+    iter=iter+1
+  }
+  iter
+  #Collect parameter estimates in data frame
+  optpathgd1 = data.frame(xgdold[1:(iter-1),])
+  colnames(optpathgd1) = c("mu1est1","mu2est1")
+} 
+
+   
+library(ggplot2)
+mixt_pl <- ggplot(likedf)
+mixt_pl +
+    stat_contour(aes(x = mu1, y = mu2,
+    z = H,colour = after_stat(level)),bins=50)+
+    geom_path(data = optpathgd,aes(x = mu1est1,
+    y = mu2est1),colour="red")+
+    geom_path(data = optpathgd1,aes(x = mu1est1,
+    y = mu2est1),colour="blue")
+
+
+
+
+```
+
+Stochastic gradient decent took a long time, almost 160 steps. This is most likely because of (too) small of an learning rate.
+```{r}
+head(optpathgd1)
+#it goes for 151 more steps for 157 in total.
+```
+
+
+
+# Assignment 2: Simulated Annealing and Genetic Algorithms
+
+a). The data set housing.txt contains data on 13 socio-economic variables that are 
+assumed to influence the median housing price (MEDV) in a region in USA. The first task is to implement R code for variable selection in a linear model using simulated annealing. The BIC criterion should be used as test statistic. A reasonable temperature schedule should be chosen. Provide a plot of the BIC statistic over iterations 
+and the selected variables in the final model.
+
+```{r}
+housing <- read.csv("C:/Users/Aleksi/Desktop/KOulu/Simulation Methods/Exercises/exercise 3/housing.txt", sep="")
+head(housing, 3)
+```
+
+```{r}
+housing_data <- housing[7:21]
+attach(housing_data)
+summary(lm(MEDV~ ., data = housing_data))
+
+
+```
+
+
+
+```{r}
+## DATA AND INITIAL VALUES
+pred <- housing_data[-1:-2] # 
+y <- housing_data[1]
+
+
+n <- nrow(housing_data)
+
+ptot <- length(pred[1,]) # NUMBER OF PREDICTORS
+m <- c(rep(60,5),rep(120,5),rep(220,5)) # THREE STAGE LENGTHS
+tau.start <- 1
+tau <- rep(tau.start,15)
+bics <- NULL
+```
+Excluding CMEDV.
+
+
+```{r}
+set.seed(12345)
+run <- rbinom(ptot,1,.5) # SAMPLE INDICATOR FOR PREDICTORS
+run.current <- run
+run.vars <- pred[,run.current==1] #SELECT PREDICTORS BASED ON INDICATORS
+run.vars <- as.matrix(run.vars)
+y <- as.matrix(y)
+f <- lm(y ~ run.vars)# INITIAL LINEAR MODEL
+#run.bic <- BIC(f)[2] # EXTRACT BIC
+run.bic <- BIC(f) # EXTRACT BIC
+best.bic <- run.bic
+bics <- run.bic
+
+
+positions <- matrix(ncol = ptot, nrow=1600)
+k = 1
+positions[k,] <- run
+for(j in 2:13){tau[j] <- 0.9*tau[j-1]} #TEMP SCHEDULE 15 LEVELS
+  ## SIMULATED ANNEALING
+
+for(j in 1:13){# RANDOMLY SELECTS A PREDICTOR TO ADD/REMOVE FROM THE MODEL
+  # AND ACCEPTS THE NEW MODEL IF IT IS BETTER OR WITH PROBABILITY prob
+  for(i in 1:m[j]){
+    pos <- sample(1:ptot,1)
+    run.step <- run.current
+    k = k + 1
+    positions[k,] <- run.step
+    
+    run.step[pos] <- !run.current[pos]
+    run.vars <- pred[,run.step==1]
+    run.vars <- as.matrix(run.vars)
+    y <- as.matrix(y)
+    f <- lm(y ~ run.vars)
+    run.step.bic <- BIC(f)
+    prob <- min(1,exp((run.bic - BIC(f))/tau[j]))
+    
+    #print(run.step.bic)
+    if(run.step.bic < run.bic){
+      run.current <- run.step
+      run.bic <- run.step.bic
+      }
+    if(rbinom(1,1,prob)){
+      run.current <- run.step
+      run.bic <- run.step.bic
+      }
+    if(run.step.bic < best.bic){ #ACCEPT IF BETTER THAN CURRENT BEST
+      run <- run.step
+      best.bic <- run.step.bic
+    }
+    bics <- c(bics, run.bic)
+    #pos[,k] <- pos
+  }
+  
+}
+
+```
+
+
+```{r}
+positions <- na.omit(positions)
+adm <- apply(positions,2, mean)
+ifelse(adm < 0.5, 0, 1)
+
+```
+When the price of admission was atleast 50% acceptance rate then whats above is the accepted predictors.
+
+```{r}
+
+plot(bics, type = "l")
+
+```
+
+```{r}
+plot(bics, type = "l", xlim = c(-5, 50))
+
+```
+Simulated annealing converges real fast. Only some 3 iterations are needed for convergence.
+```{r}
+head(pos)
+```
+
+
+
+
+b). Secon1dly, perform variable selection using the genetic algorithm in library GA. The binary type should be chosen. Other parameters should be set in order to find an appropriate genetic algorithm. Provide a plot of the fitness function over iterations (generations) and the selected variables in the final model. Compare with the results obtained in a).
+
+
+```{r}
+
+pred <- housing_data[-1:-2] # 
+y <- housing_data[1]
+
+pred <- as.matrix(pred)
+y <- as.matrix(y)
+mod <- lm(y ~ pred,)
+#mod <- lm(y ~ .,data=pred)
+x <- model.matrix(mod)[, -1]
+y <- model.response(model.frame(mod))
+library(GA)
+fitness <- function(string) {
+    inc <- which(string == 1)
+    X <- cbind(1, x[,inc])
+    mod <- lm.fit(X, y)
+    class(mod) <- "lm"
+    -extractAIC(mod)[2]
+}
+
+
+GA <- ga("binary", fitness = fitness, nBits = ncol(x), names = colnames(x))
+```
+
+```{r}
+plot(GA)
+
+```
+It would seem that convergence is achieved by the 40th generation. 
+
+```{r}
+summary(GA)
+```
+On the last row ones meen that, that the variable was chosen in the final model. Only Indus and NOX variables were left out.

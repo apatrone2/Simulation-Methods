@@ -1,0 +1,218 @@
+---
+title: 'Simulation Methods: Lab 1'
+author: "Aleksi Patronen"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Could you please add in comments to your code alongwith a summary of your understading and resubmit?
+
+a). Implement R-code of the Box-Müller algorithm for random generation of variable X from a normal distribution. Table 6.1 in Givens and Hoeting (2013) provides information on the algorithm. Compare the results with simulations from rnorm() in terms of summary statistics (mean and standard deviation) and a histogram based on n = 100 000 draws.
+
+```{r cars}
+library(ggplot2)
+n <- 10^5 # number of observations simulated
+seed <- 1234 # seed for reproducability
+Box_muller <- function(n, mu, sigma, seed){
+  set.seed(seed)
+  samples <- matrix(ncol = 2, nrow = n) # create a matrix where samples will be stored
+   for (i in c(1:n)){ # for loop 1 -> n
+     u1 <- runif(1) # sample u1 from uniform 
+     u2 <- runif(1) # sample u2 from uniform 
+     R <- sqrt(-2*log(1 - u1)) # calculate the fist part of the norm equation
+     theta <- 2*pi*u2 # the second part  as tabulated in table 6.1 in the book
+     X <- R*cos(theta) # make two variables x and y
+     Y <- R*sin(theta) # both of wich are normally distributed i.i.d
+     samples[i,1] <- X # pack both of the variables into the matrix     
+     samples[i,2] <- Y # created earlier.
+   }
+  return(samples)  # return samples
+}
+
+
+
+results <- Box_muller(n, mu = 0, sigma = 1, seed) # call for the functions
+hist(results[,1]) # lets hist's
+hist(results[,2]) # lets hist's
+
+set.seed(seed) # lets see wheeather theres diffrerence to the standard rnorm function in R
+results_standard <- rnorm(n) 
+
+summary(results[,1]) - summary(results_standard)
+summary(results[,2]) - summary(results_standard)
+
+
+```
+Box-Müller and R standard rnorm() dont give exactly the same results. Slight deviation exist.
+```{r}
+
+
+summary(rowMeans(results)) - summary(results_standard) # lets see if averaging the two variabrles makes a difference
+
+hist(rowMeans(results))
+```
+
+averaging the two different variables doesn't help.
+
+
+
+
+b). Make a for loop (or something equivalent) and produce 100 replicate data sets of the set-up in the earlier part of the exercise. Use the mean to calculate expectations for each of these, and finally calculate the standard deviation of the means. Repeat this procedure with n = 100, 1 000 and 10 000. Present a table with n and the standard deviation of the means. Discuss your result and present the R-code you together with explaination # comments.
+
+```{r pressure, echo=FALSE}
+
+ns <- c(10^2, 10^3, 10^4) #differenct n. obs
+deviations <- matrix(ncol = 1, nrow = 3) # creating matrix for the deviations
+for(i in c(1:3)){ 
+  tulokset <- list() # create a list for results of the drawn
+  results <- matrix(ncol = 1, nrow = 100) # creating a matrix for the different means
+  for (j in c(1:100)){
+    tulokset <- Box_muller(n = ns[i], mu = 0, 1, 1234 + j) # using 1234 + j as the seed so we dont end up with the same data again and again
+    mean <- mean(tulokset[,1]) # calculate the mean
+    results[j,1] <- mean # save the mean
+  }
+  sd <- sd(results[,1]) # calculate the standard deviations of the means
+  
+  deviations[i,] <- sd # add the sd to the list
+}
+
+
+
+```
+
+```{r}
+plot(ns,deviations, type = "b", xlab = "number of obs.", ylab = "standard deviations of mean from 100 datasets", col = "red")
+
+```
+On y-axis is the standard deviations of the mean of 100 datasets. On x-axis is the size of thoes 100 datasets.
+It would seem that the standard deviation has an exponential decay in size. Meaning it is asymptotically standard deviation. Meaning as the number of observations go to infinity, the mean goes to zero.
+
+```{r}
+matrix(c(ns, deviations), nrow = 3, ncol = 2)
+
+
+```
+This is matrix (numeric) representation of the previous graph
+
+## Assigment 2
+
+a)The purpose of this part is to test the variance reduction properties of the importance sampling algorithm. The logic behind importance sampling is to introduce an importance sampling function g(x) into the integral.
+
+where w(x) are importance weights. Consider the function h(x)=10exp⁡(-2|x-5|). The first task is to write R code that implements ordinary Monte Carlo sampling to obtain E(h(X)) where X ~ Unif(0,10). Use the MC samples to obtain the expectation, standard deviation and coefficient of variation based on 10 000 samples. Plot X against h(X).
+#Add: Compare with the integrate() function in R.
+
+
+```{r}
+
+set.seed(1234) #set seed for reproducability
+h <- function(x){10*exp(-2*abs(x-5))} # h pdf function
+h2 <- function(x){x*h(x)} # for calculating expected value
+integrate(h, 0 , 10) # expected value turn out to be ~50. 10x what it is supposed to be
+
+
+
+
+
+x <- runif(10^4, 0, 10) # sample x from ~Unif(0,10)
+sims <- h(x) # MC simulations
+mu <- sum(sims)/10^4 #calculate the mean 
+sd <- sd(sims) # sd of simulations
+cv <- mu/sd # coefficent of variations 
+
+plot(x, h(x))
+hist(h(x))
+summary(h(x))
+
+
+
+mu;sd;cv
+
+
+
+
+
+
+```
+Integral mean calulation didint quite workout. 
+
+You will now introduce an importance sampling function g(x)=N⁡(5,1) that together with f(x)=1⁄10 results in w(x)=(√2π e^((x-5)^2⁄2))⁄10. The full integral can be re-written as 
+
+
+```{r}
+w <- function(x) dunif(x, 0, 10)/dnorm(x, mean=5, sd=1) # weights -> f/g 
+f <- function(x) 10*exp(-2*abs(x-5)) # f() function (h() in literature)
+X <- rnorm(10000,mean=5,sd=1) # sampling for X from normal distribution that is: the envelope distr. g()
+Y <- w(X)*f(X) # weighting in the samples.
+
+
+hist(Y) 
+summary(Y)
+
+
+
+```
+  
+Mean and median are quite close.Min and Max are completely different. A lot smaller variance that is.
+
+
+
+
+
+
+b) The next task is to transform the IS algorithm into a Sampling importance resampling (SIR) algorithm following the lecture notes (and course literature) and compare the results with these from a). Use the same n and choose m according to recommendations. Discuss the results and provide code with explanations.
+
+
+```{r}
+w <- function(x) f(x)/dnorm(x, mean=5, sd=1) # weights -> f/g 
+
+
+set.seed(1234) #set seet for reproducabilituy
+n <- 10000 # n. of observatiosn
+m <- 5000 # n. of samples
+
+y <- rnorm(n = m, mean = 5, sd = 1) # take samples from the envelope
+w <-  w(y) # calculate weights
+w <- w/sum(w) # norm the weights
+
+x <- sample(y, replace = TRUE, prob = w, size = n) # resample from envelope with the weights as probabilities
+
+hist(x) # let's see what was created
+
+```
+
+Histogram looks quite like the N(5,1) its supposed to look like. 
+
+
+
+
+```{r}
+x1 <- rnorm(n, mean = 5, 1)
+
+hist(x1)
+```
+
+
+
+
+Compared to the SIR sample, this looks bloated with larger variance in its sample.
+
+let's take at the variance difference between the two
+```{r}
+var(x)
+var(x1)
+
+
+```
+
+SIR sampled has almost half the variance of the normal sample.
+
+
+
+
+

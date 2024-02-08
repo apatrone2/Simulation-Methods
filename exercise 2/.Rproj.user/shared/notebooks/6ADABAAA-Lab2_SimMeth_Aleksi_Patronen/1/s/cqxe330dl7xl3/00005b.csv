@@ -1,0 +1,2 @@
+"0","v <- seq(-4, 4, 0.01)"
+"0","lines(v, dens.fun.1.n(v), col = 'goldenrod3', lwd = 1.5)"

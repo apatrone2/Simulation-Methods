@@ -1,0 +1,7 @@
+"0","w <- function(x) dunif(x, 0, 10)/dnorm(x, mean=5, sd=1) # weights -> f/g "
+"0","f <- function(x) 10*exp(-2*abs(x-5)) # f() function (h() in literature)"
+"0","X <- rnorm(10000,mean=5,sd=1) # sampling for X from normal distribution that is: the envelope distr. g()"
+"0","Y <- w(X)*f(X) # weighting in the samples."
+"0",""
+"0",""
+"0","hist(Y) "
